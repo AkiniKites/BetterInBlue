@@ -1,15 +1,14 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Numerics;
+using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
 using ImGuiNET;
 
 namespace BetterInBlue.Windows;
 
 public class ConfigWindow : Window, IDisposable {
-    private Plugin plugin;
-
-    public ConfigWindow(Plugin plugin) : base("Better in Blue Config") {
-        this.plugin = plugin;
+    public ConfigWindow() : base("Better in Blue Config") {
         this.Size = new Vector2(450, 400);
         this.SizeCondition = ImGuiCond.FirstUseEver;
     }
@@ -17,9 +16,9 @@ public class ConfigWindow : Window, IDisposable {
     public void Dispose() { }
 
     public override void Draw() {
-        var applyToHotbars = Plugin.Configuration.ApplyToHotbars;
+        var applyToHotbars = Plugin.Configuration.RestoreHotbars;
         if (ImGui.Checkbox("Apply to hotbars", ref applyToHotbars)) {
-            Plugin.Configuration.ApplyToHotbars = applyToHotbars;
+            Plugin.Configuration.RestoreHotbars = applyToHotbars;
             Plugin.Configuration.Save();
         }
 
@@ -31,13 +30,14 @@ public class ConfigWindow : Window, IDisposable {
         }
 
         if (!applyToHotbars) ImGui.BeginDisabled();
-        this.HotbarSelector(true);
-        this.HotbarSelector(false);
+        this.HotbarsSelector("Hotbar", Plugin.Configuration.Hotbars);
         if (!applyToHotbars) ImGui.EndDisabled();
 
-        var applyToCrossHotbars = Plugin.Configuration.ApplyToCrossHotbars;
+        ImGui.Spacing();
+        ImGui.Spacing();
+        var applyToCrossHotbars = Plugin.Configuration.RestoreCrossHotbars;
         if (ImGui.Checkbox("Apply to cross hotbars", ref applyToCrossHotbars)) {
-            Plugin.Configuration.ApplyToCrossHotbars = applyToCrossHotbars;
+            Plugin.Configuration.RestoreCrossHotbars = applyToCrossHotbars;
             Plugin.Configuration.Save();
         }
 
@@ -49,44 +49,43 @@ public class ConfigWindow : Window, IDisposable {
         }
 
         if (!applyToCrossHotbars) ImGui.BeginDisabled();
-        this.CrossHotbarSelector(true);
-        this.CrossHotbarSelector(false);
+        this.HotbarsSelector("Cross Hotbar", Plugin.Configuration.CrossHotbars);
         if (!applyToCrossHotbars) ImGui.EndDisabled();
     }
 
-    private void HotbarSelector(bool firstHotbar) {
-        var current = firstHotbar
-                          ? Plugin.Configuration.HotbarOne
-                          : Plugin.Configuration.HotbarTwo;
+    private void HotbarsSelector(string name, List<int> hotbars) {
+        for (int i = 0; i < hotbars.Count; i++) {
+            ImGui.PushID($"selector-{name}-{i}");
 
-        if (ImGui.InputInt(firstHotbar ? "Hotbar 1" : "Hotbar 2", ref current)) {
-            if (current > 10) current = 10;
-            if (current < 1) current = 1;
+            var value = hotbars[i];
+            if (ImGui.InputInt("##hotbar", ref value)) {
+                if (value > 10) value = 10;
+                if (value < 1) value = 1;
 
-            if (firstHotbar) {
-                Plugin.Configuration.HotbarOne = current;
-            } else {
-                Plugin.Configuration.HotbarTwo = current;
+                hotbars[i] = value;
+                Plugin.Configuration.Save();
             }
+            ImGui.SameLine();
 
-            Plugin.Configuration.Save();
+            var canDelete = ImGui.GetIO().KeyCtrl;
+            if (Plugin.DisabledButtonWithTooltip(
+                    FontAwesomeIcon.Trash,
+                    !canDelete,
+                    "",
+                    "Delete this hotbar. Hold Ctrl to enable the delete button."
+                )) {
+                hotbars.RemoveAt(i);
+                i--;
+                Plugin.Configuration.Save();
+            }
+            ImGui.SameLine();
+            ImGui.Text($"{name} {i + 1}");
+
+            ImGui.PopID();
         }
-    }
 
-    private void CrossHotbarSelector(bool firstHotbar) {
-        var current = firstHotbar
-                          ? Plugin.Configuration.CrossHotbarOne
-                          : Plugin.Configuration.CrossHotbarTwo;
-
-        if (ImGui.InputInt(firstHotbar ? "Cross hotbar 1" : "Cross hotbar 2", ref current)) {
-            if (current > 8) current = 8;
-            if (current < 1) current = 1;
-            if (firstHotbar) {
-                Plugin.Configuration.CrossHotbarOne = current;
-            } else {
-                Plugin.Configuration.CrossHotbarTwo = current;
-            }
-
+        if (ImGui.Button($"Add {name}") && hotbars.Count < 10) {
+            hotbars.Add(1);
             Plugin.Configuration.Save();
         }
     }

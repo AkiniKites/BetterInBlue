@@ -32,8 +32,9 @@ public sealed class Plugin : IDalamudPlugin {
         pluginInterface.Create<Services>();
 
         Configuration = Services.PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+
         this.MainWindow = new MainWindow(this);
-        this.ConfigWindow = new ConfigWindow(this);
+        this.ConfigWindow = new ConfigWindow();
 
         WindowSystem.AddWindow(MainWindow);
         WindowSystem.AddWindow(ConfigWindow);
@@ -44,6 +45,7 @@ public sealed class Plugin : IDalamudPlugin {
 
         Services.PluginInterface.UiBuilder.Draw += this.DrawUi;
         Services.PluginInterface.UiBuilder.OpenConfigUi += this.OpenConfigUi;
+        Services.PluginInterface.UiBuilder.OpenMainUi += this.OpenMainUi;
 
         Action = Services.DataManager.GetExcelSheet<Action>()!;
         AozAction = Services.DataManager.GetExcelSheet<AozAction>()!;
@@ -105,6 +107,9 @@ public sealed class Plugin : IDalamudPlugin {
 
     public void OpenConfigUi() {
         this.ConfigWindow.IsOpen = true;
+    }
+    public void OpenMainUi() {
+        this.MainWindow.IsOpen = true;
     }
 
     public static uint AozToNormal(uint id) {

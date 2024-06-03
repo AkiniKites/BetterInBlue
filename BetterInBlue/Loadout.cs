@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Dalamud.Game.ClientState.Conditions;
@@ -12,6 +13,7 @@ namespace BetterInBlue;
 public class Loadout {
     public string Name { get; set; }
     public uint[] Actions { get; set; } = new uint[24];
+    public Dictionary<int, List<(HotbarSlotType Type, uint Id)>> HotbarActions { get; set; }
 
     public Loadout(string name = "Unnamed Loadout") {
         this.Name = name;
@@ -80,58 +82,61 @@ public class Loadout {
             if (ret == false) return false;
         }
 
-        if (Plugin.Configuration.ApplyToHotbars) {
-            this.ApplyToHotbar(
-                Plugin.Configuration.HotbarOne,
-                this.Actions[..12]
-            );
-
-            this.ApplyToHotbar(
-                Plugin.Configuration.HotbarTwo,
-                this.Actions[12..]
-            );
+        if (Plugin.Configuration.RestoreHotbars) {
+            ApplyHotbars(12, Plugin.Configuration.Hotbars.Select(x => x - 1));
         }
 
-        if (Plugin.Configuration.ApplyToCrossHotbars) {
-            this.ApplyToHotbar(
-                Plugin.Configuration.CrossHotbarOne + 10,
-                this.Actions[..16],
-                true
-            );
-
-            this.ApplyToHotbar(
-                Plugin.Configuration.CrossHotbarTwo + 10,
-                this.Actions[16..],
-                true
-            );
+        if (Plugin.Configuration.RestoreCrossHotbars) {
+            ApplyHotbars(16, Plugin.Configuration.CrossHotbars.Select(x => x - 1 + 10));
         }
 
         return true;
     }
 
-    private unsafe void ApplyToHotbar(int id, uint[] aozActions, bool crossbar = false) {
+    public unsafe void SaveHotbars() {
+        HotbarActions.Clear();
+
+        if (Plugin.Configuration.RestoreHotbars) {
+            SaveHotbars(12, Plugin.Configuration.Hotbars.Select(x => x - 1));
+        }
+        if (Plugin.Configuration.RestoreCrossHotbars) {
+            SaveHotbars(16, Plugin.Configuration.CrossHotbars.Select(x => x - 1 + 10));
+        }
+    }
+
+    private unsafe void SaveHotbars(int maxSlots, IEnumerable<int> hotbars) {
         var hotbarModule = RaptureHotbarModule.Instance();
 
-        var maxSlots = !crossbar ? 12 : 16;
+        foreach (var hotbar in hotbars) {
+            if (hotbar < 0 || hotbar >= hotbarModule->HotBarsSpan.Length) {
+                Services.Log.Warning("Invalid hotbar number: " + hotbar);
+                continue;
+            }
+            var savedActions = new List<(HotbarSlotType Type, uint Id)>();
+            HotbarActions[hotbar] = savedActions;
 
-        for (var i = 0; i < maxSlots; i++) {
-            var aozAction = aozActions[i];
-            var normalAction = Plugin.AozToNormal(aozAction);
-            var slot = !crossbar
-                           ? hotbarModule->GetSlotById((uint) (id - 1), (uint) i)
-                           : hotbarModule->GetSlotById((uint) (id - 1), (uint) (15 - i));
+            for (uint i = 0; i < maxSlots; i++) {
+                var slot = hotbarModule->GetSlotById((uint)hotbar, i);
+                savedActions.Add((slot->CommandType, slot->CommandId));
+            }
+        }
+    }
 
-            if (normalAction == 0) {
-                // DO NOT SET ACTION 0 YOU WILL GET CURE'D
-                slot->Set(
-                    HotbarSlotType.Empty,
-                    0
-                );
-            } else {
-                slot->Set(
-                    HotbarSlotType.Action,
-                    normalAction
-                );
+    private unsafe void ApplyHotbars(int maxSlots, IEnumerable<int> hotbars) {
+        var hotbarModule = RaptureHotbarModule.Instance();
+
+        foreach (var hotbar in hotbars) {
+            if (hotbar < 0 || hotbar >= hotbarModule->HotBarsSpan.Length) {
+                Services.Log.Warning("Invalid hotbar number: " + hotbar);
+                continue;
+            }
+
+            if (!HotbarActions.TryGetValue(hotbar, out var savedActions))
+                continue;
+
+            for (int i = 0; i < maxSlots; i++) {
+                var slot = hotbarModule->GetSlotById((uint)hotbar, (uint)i);
+                slot->Set(savedActions[i].Type, savedActions[i].Id);
             }
         }
     }

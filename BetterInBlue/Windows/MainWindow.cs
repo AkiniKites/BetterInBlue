@@ -160,6 +160,21 @@ public class MainWindow : Window, IDisposable {
 
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Copy this loadout as a preset to the clipboard.");
 
+            ImGui.SameLine();
+
+            if (ImGuiComponents.IconButton(FontAwesomeIcon.Save)) {
+                this.selectedLoadout.SaveHotbars();
+                Plugin.Configuration.Save();
+
+                Services.PluginInterface.UiBuilder.AddNotification(
+                    "Saved the current actions in hotbars to loadout",
+                    "Better in Blue",
+                    NotificationType.Success
+                );
+            }
+
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Save the actions in the configured hotbars to the loadout.");
+
             // Can't ref the damn name, I hate getter/setters
             var name = this.selectedLoadout!.Name;
             if (ImGui.InputText("Name", ref name, 256)) {
